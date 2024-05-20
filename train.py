@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy as np
-from utils import Variable, seq_to_smiles, unique
+from utils import Variable, seq_to_smiles, unique, geometric_mean, weighted_geometric_mean
 from model import RNN
 from optimizer import BaseOptimizer
 from data_structs import Vocabulary, Experience
@@ -73,16 +73,22 @@ class REINVENT_Optimizer(BaseOptimizer):
             # Get prior likelihood and score
             prior_likelihood, _ = Prior.likelihood(Variable(seqs))
             smiles = seq_to_smiles(seqs, voc)
-            score = np.array(self.oracle(smiles))
+
+            score = 0
+            alpha = 10.0  
+            score_qed = np.array(self.oracle(smiles))
             t = tanimoto(query_structure)
             score_tanimoto = np.array(t.__call__(smiles))
             beta = 10.0
-            score += beta * score_tanimoto
+            gamma = 1.0
             s= logP()
             score_logp = np.array(s.__call__(smiles))
-            score += score_logp
-            full_score = beta
-            
+            weights = [alpha, beta, gamma]
+            #score = weighted_geometric_mean(values, weights)
+            score = alpha*score_qed+beta*score_tanimoto+gamma*score_logp
+            score = score / sum(weights)
+
+
             if self.finish:
                 print('max oracle hit')
                 break 

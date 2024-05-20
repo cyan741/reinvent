@@ -1,6 +1,24 @@
 import torch
 import numpy as np
 from rdkit import Chem
+from typing import List
+import numpy as np
+def geometric_mean(values: List[float]) -> float:
+    """
+    Computes the geometric mean of a list of values.
+    """
+    a = np.array(values)
+    return a.prod() ** (1.0 / len(a))
+
+def weighted_geometric_mean(values: List[float], weights: List[float]) -> float:
+    """
+    Computes the weighted geometric mean of values.
+    """
+    weighted_values = [value ** weight for value, weight in zip(values, weights)]
+    product = 1.0
+    for weighted_value in weighted_values:
+        product *= weighted_value
+    return product ** (1.0 / sum(weights))
 
 def Variable(tensor):
     """Wrapper for torch.autograd.Variable that also accepts

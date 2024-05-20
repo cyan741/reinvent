@@ -7,9 +7,12 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 import tdc
 from data_structs import MolData
+from rdkit import DataStructs
+from rdkit.Chem import AllChem
+from rdkit.Chem import Descriptors
 from help.chem import *
 from scoring_functions import tanimoto, logP
-
+import json
 
 class Objdict(dict):
     def __getattr__(self, name):
@@ -165,14 +168,21 @@ class Oracle:
             if smi in self.mol_buffer:
                 pass
             else:
-                score = float(self.evaluator(smi))
+                score = 0
+                alpha = 10.0 
+                score_qed = float(self.evaluator(smi))
                 t = tanimoto(self.query_structure)
                 score_tanimoto = np.array(t.__call__([smi]))[0]
-                beta = 10
+                beta = 10.0
+                gamma = 1.0
                 score += beta * score_tanimoto
                 s= logP()
                 score_logp = np.array(s.__call__([smi]))[0]
-                score += score_logp
+                weights = [alpha, beta, gamma]
+                score = alpha*score_qed+beta*score_tanimoto+gamma*score_logp
+                score = score / sum(weights)
+
+
                 self.mol_buffer[smi] = [score, len(self.mol_buffer)+1]
             return self.mol_buffer[smi][0]
     
@@ -210,6 +220,7 @@ class BaseOptimizer:
         self.args = args
         self.n_jobs = args.n_jobs
         self.smi_file = args.smi_file
+        self.max_oracle_calls = args.max_oracle_calls
         self.oracle = Oracle(args=self.args)
         #self.all_smiles = MolData("data/ChEMBL_filtered.smi", voc)
         self.query_structure = args.query_structure
@@ -241,24 +252,9 @@ class BaseOptimizer:
 
         print(f"Logging final results...")
 
-        # import ipdb; ipdb.set_trace()
+        results = sorted(results[:100], key=lambda kv: kv[1][0], reverse=True)
+        self._analyze_results(results)
 
-        log_num_oracles = [100, 500, 1000, 3000, 5000, 10000]
-        assert len(self.mol_buffer) > 0 
-
-        results = list(sorted(self.mol_buffer.items(), key=lambda kv: kv[1][1], reverse=False))
-        if len(results) > 10000:
-            results = results[:10000]
-        
-        results_all_level = []
-        for n_o in log_num_oracles:
-            results_all_level.append(sorted(results[:n_o], key=lambda kv: kv[1][0], reverse=True))
-        
-
-        # Log batch metrics at various oracle calls
-        data = [[log_num_oracles[i]] + self._analyze_results(r) for i, r in enumerate(results_all_level)]
-        columns = ["#Oracle", "avg_top100", "avg_top10", "avg_top1", "Diversity", "avg_SA", "%Pass", "Top-1 Pass"]
-        
     def save_result(self, suffix=None):
 
         print(f"Saving molecules...")
@@ -276,23 +272,46 @@ class BaseOptimizer:
         with open(output_file_path, 'w') as f:
             yaml.dump(records, f, sort_keys=False)
     
-    def _analyze_results(self, results):
-        results = results[:100]
+    def _analyze_results(self):
+        structures = {
+            "Celebrex" : "C1(S(N)(=O)=O)=CC=C(N2C(C3=CC=C(C)C=C3)=CC(C(F)(F)F)=N2)C=C1",
+            "Osimertinib" : "CN1C=C(C2=CC=CC=C21)C3=NC(=NC=C3)NC4=C(C=C(C(=C4)NC(=O)C=C)N(C)CCN(C)C)OC",
+            "Fexofenadine" : "CC(C)(C1=CC=C(C=C1)C(CCCN2CCC(CC2)C(C3=CC=CC=C3)(C4=CC=CC=C4)O)O)C(=O)O",
+            "Ranolazine" : "CC1=C(C(=CC=C1)C)NC(=O)CN2CCN(CC2)CC(COC3=CC=CC=C3OC)O",
+            "Perindopril": "CCCC(C(=O)O)NC(C)C(=O)N1C2CCCCC2CC1C(=O)O",
+            "Amlodipine": "CCOC(=O)C1=C(NC(=C(C1C2=CC=CC=C2Cl)C(=O)OC)C)COCCN",
+            "Sitagliptin": "C1CN2C(=NN=C2C(F)(F)F)CN1C(=O)CC(CC3=CC(=C(C=C3F)F)F)N",
+            "Zaleplon": "CCN(C1=CC=CC(=C1)C2=CC=NC3=C(C=NN23)C#N)C(=O)C"
+
+            }
+
+        results = list(sorted(self.mol_buffer.items(), key=lambda kv: kv[1][1], reverse=False))[:self.max_oracle_calls]
+        results = sorted(results, key=lambda kv: kv[1][0], reverse=True)[:100]
         scores_dict = {item[0]: item[1][0] for item in results}
         smis = [item[0] for item in results]
         scores = [item[1][0] for item in results]
-        smis_pass = self.filter(smis)
-        if len(smis_pass) == 0:
-            top1_pass = -1
-        else:
-            top1_pass = np.max([scores_dict[s] for s in smis_pass])
-        return [np.mean(scores), 
-                np.mean(scores[:10]), 
-                np.max(scores), 
-                self.diversity_evaluator(smis), 
-                np.mean(self.sa_scorer(smis)), 
-                float(len(smis_pass) / 100), 
-                top1_pass]
+        sim_pass = 0
+        logP_pass = 0
+        qed_pass = 0
+        for smi in smis:
+            m = Chem.MolFromSmiles(smi)
+            q = structures.get(self.query_structure)
+            mq = Chem.MolFromSmiles(q)
+            t = tanimoto(self.query_structure)
+            score_tanimoto = np.array(t.__call__([smi]))
+            s= logP()
+            score_logp = np.array(s.__call__([smi]))
+            qed_mq = Descriptors.qed(mq)
+            qed_m = Descriptors.qed(m)
+
+            if score_tanimoto > 0.5:
+                sim_pass += 1
+            if score_logp == 1.0:
+                logP_pass += 1
+            if qed_m > qed_mq:
+                qed_pass += 1
+
+            print(f"top100 sim_pass:{float(sim_pass / 100)} logP_ pass:{float(logP_pass / 100)} qed_pass:{float(qed_pass / 100)}")
 
     def reset(self):
         del self.oracle
@@ -333,11 +352,12 @@ class BaseOptimizer:
         torch.manual_seed(seed)
         random.seed(seed)
         self.seed = seed 
-        self.oracle.task_label = self.model_name + "_" + oracle.name + "_" + str(seed)
+        self.oracle.task_label = self.model_name + "_" + query_structure + "_" + str(seed)
         self._optimize(oracle, config, query_structure)
-        if self.args.log_results:
-            self.log_result()
-        self.save_result(self.model_name + "_" + oracle.name + "_" + str(seed))
+        #if self.args.log_results: 
+        self._analyze_results()
+        self.save_result(self.model_name + "_" + query_structure + "_" + str(seed))
+
         self.reset()
 
 

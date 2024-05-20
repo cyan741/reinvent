@@ -5,7 +5,7 @@ from rdkit import rdBase
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
 from rdkit.Chem import Descriptors
-from sklearn import svm
+
 import time
 import pickle
 import re
@@ -65,7 +65,7 @@ class tanimoto():
                 fp = AllChem.GetMorganFingerprint(mol, 2, useCounts=True, useFeatures=True)
                 score = DataStructs.TanimotoSimilarity(self.query_fp, fp)
                 score = min(score, self.k) / self.k
-                score = 2 * score -1
+                #score = 2 * score -1
                 resluts.append(score)
                 
             else:

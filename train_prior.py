@@ -9,7 +9,7 @@ from model import RNN
 from utils import Variable, decrease_learning_rate
 rdBase.DisableLog('rdApp.error')
 
-def pretrain(restore_from=None):
+def pretrain(output_file, restore_from=None):
     """Trains the Prior RNN"""
 
     # Read vocabulary from a file
@@ -21,7 +21,7 @@ def pretrain(restore_from=None):
                       collate_fn=MolData.collate_fn)
 
     Prior = RNN(voc)
-
+    print("done rnn")
     # Can restore from a saved RNN
     if restore_from:
         Prior.rnn.load_state_dict(torch.load(restore_from))
@@ -45,6 +45,7 @@ def pretrain(restore_from=None):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
 
             # Every 500 steps we decrease learning rate and print some information
             if step % 500 == 0 and step != 0:
@@ -57,6 +58,8 @@ def pretrain(restore_from=None):
                     smile = voc.decode(seq)
                     if Chem.MolFromSmiles(smile):
                         valid += 1
+                        with open(output_file, "a") as f:
+                            f.write(smile + "\n")
                     if i < 5:
                         tqdm.write(smile)
                 tqdm.write("\n{:>4.1f}% valid SMILES".format(100 * valid / len(seqs)))
@@ -67,4 +70,5 @@ def pretrain(restore_from=None):
         torch.save(Prior.rnn.state_dict(), "data/Prior.ckpt")
 
 if __name__ == "__main__":
-    pretrain()
+    output_file = "results/pretrain_results_from_ChemblFilter10000.smi"
+    pretrain(output_file)
