@@ -304,34 +304,50 @@ class BaseOptimizer:
         sim_pass = 0
         logP_pass = 0
         qed_pass = 0
+        sim_min = 1
+        sim_max = 0
+        qed_min = 1
+        qed_max = 0
         for smi in smis:
             m = Chem.MolFromSmiles(smi)
             q = structures.get(self.query_structure)
             mq = Chem.MolFromSmiles(q)
             t = tanimoto(self.query_structure)
             score_tanimoto = np.array(t.__call__([smi]))
+            if sim_min > score_tanimoto:
+                sim_min = score_tanimoto
+
+            if sim_max < score_tanimoto:
+                sim_max = score_tanimoto
             s= logP()
             score_logp = np.array(s.__call__([smi]))
             qed_mq = Descriptors.qed(mq)
             qed_m = Descriptors.qed(m)
-
-            if score_tanimoto > 0.5:
+            if qed_min > qed_m:
+                qed_min = qed_m
+            if qed_max < qed_m:
+                qed_max = qed_m
+            if score_tanimoto > 0.6:
                 sim_pass += 1
             if score_logp == 1.0:
                 logP_pass += 1
             if qed_m > qed_mq:
                 qed_pass += 1
 
-        print(f"top100 sim_pass:{float(sim_pass / 100)} logP_ pass:{float(logP_pass / 100)} qed_pass:{float(qed_pass / 100)}")
+        
         print(f"seed:{seed}")
         output_file = os.path.join(self.args.output_dir, 'results_' +  self.query_structure + "_" + str(seed)+".json")
 
         with open (output_file, "r") as infile:
             existing_data = json.load(infile)
-        existing_data ["pass_rates"]= {
-            "top100_sim_pass": float(sim_pass / 100),
+        existing_data ["top100_pass_rates"]= {
+            "sim_pass_0.6": float(sim_pass / 100),
+            "sim_low_bound": float(sim_min),
+            "sim_max_bound": float(sim_max),
             "logP_pass": float(logP_pass / 100),
-            "qed_pass": float(qed_pass / 100)
+            "qed_pass": float(qed_pass / 100), 
+            "qed_low_bound": float(qed_min),
+            "qed_max_bound": float(qed_max)
         }
         with open(output_file, 'w') as outfile:
             json.dump(existing_data, outfile, indent=4)
@@ -346,28 +362,7 @@ class BaseOptimizer:
     @property
     def finish(self):
         return self.oracle.finish
-        
-            
-    def hparam_tune(self, oracles, hparam_space, hparam_default, count=5, num_runs=3, project="tune"):
-        seeds = [0, 1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
-        seeds = seeds[:num_runs]
-        hparam_space["name"] = hparam_space["name"]
-        
-        def _func():
-            avg_auc = 0
-            for oracle in oracles:
-                auc_top10s = []
-                for seed in seeds:
-                    np.random.seed(seed)
-                    torch.manual_seed(seed)
-                    random.seed(seed)
-                    self._optimize(oracle, self.config, self.query_structure)
-                    auc_top10s.append(top_auc(self.oracle.mol_buffer, 10, True, self.oracle.freq_log, self.oracle.max_oracle_calls))
-                    self.reset()
-                avg_auc += np.mean(auc_top10s)
-            print({"avg_auc": avg_auc})
-            
-
+    
     def optimize(self, oracle, config, query_structure, seed, project="test"):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -380,6 +375,29 @@ class BaseOptimizer:
         self.save_result(self.model_name + "_" + query_structure + "_" + str(seed))
 
         self.reset()
+
+        
+            
+    def hparam_tune(self, oracles, hparam_space, hparam_default, count=5, num_runs=3, project="tune"):
+        #seeds = [0, 1, 2, 3, 5, 7, 11, 13, 17, 19,
+        seeds = [23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+        seeds = seeds[:num_runs]
+        hparam_space["name"] = hparam_space["name"]
+        
+        def _func():
+            avg_auc = 0
+            for oracle in oracles:
+                auc_top10s = []
+                for seed in seeds:
+                    np.random.seed(seed)
+                    torch.manual_seed(seed)
+                    random.seed(seed)
+                    self._optimize(oracle, self.config, self.query_structure, seed)
+                    auc_top10s.append(top_auc(self.oracle.mol_buffer, 10, True, self.oracle.freq_log, self.oracle.max_oracle_calls))
+                    self.reset()
+                avg_auc += np.mean(auc_top10s)
+            print({"avg_auc": avg_auc})
+            
 
 
     def production(self, oracle, config, num_runs=5, project="production"):

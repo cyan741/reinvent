@@ -11,5 +11,14 @@
         "auc_top1": 0.8732433861615998,
         "auc_top10": 0.8478359076037832,
         "auc_top100": 0.804184986287453
+    },
+    "top100_pass_rates": {
+        "sim_pass_0.6": 1.0,
+        "sim_low_bound": 0.7482993197278912,
+        "sim_max_bound": 1.0,
+        "logP_pass": 1.0,
+        "qed_pass": 0.73,
+        "qed_low_bound": 0.7000505080135732,
+        "qed_max_bound": 0.9463503527130224
     }
 }
