@@ -15,7 +15,7 @@ class REINVENT_Optimizer(BaseOptimizer):
         super().__init__(args)
         self.model_name = "reinvent"
         
-    def _optimize(self, oracle, config, query_structure):
+    def _optimize(self, oracle, config, query_structure, seed):
 
         self.oracle.assign_evaluator(oracle)
 
@@ -99,7 +99,7 @@ class REINVENT_Optimizer(BaseOptimizer):
                 if new_scores <= old_scores:
                     patience += 1
                     if patience >= self.args.patience:
-                        self.log_intermediate(finish=True)
+                        self.log_intermediate(finish=True, seed=seed)
                         print('convergence criteria met, abort ...... ')
                         break
                 else:

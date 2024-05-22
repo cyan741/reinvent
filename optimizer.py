@@ -56,7 +56,6 @@ class Oracle:
         self.name = None
         self.evaluator = None
         self.task_label = None
-        
         if args is None:
             self.max_oracle_calls = 10000
             self.freq_log = 100
@@ -64,6 +63,7 @@ class Oracle:
             self.args = args
             self.query_structure = args.query_structure
             self.max_oracle_calls = args.max_oracle_calls
+            self.seed =  args.seed
             self.freq_log = args.freq_log
         self.mol_buffer = mol_buffer
         self.sa_scorer = tdc.Oracle(name = 'SA')
@@ -92,7 +92,7 @@ class Oracle:
             yaml.dump(self.mol_buffer, f, sort_keys=False)
 
 
-    def log_intermediate(self, mols=None, scores=None, finish=False):
+    def log_intermediate(self, mols=None, scores=None, finish=False, seed = None):
 
         if finish:
             temp_top100 = list(self.mol_buffer.items())[:100]
@@ -114,6 +114,7 @@ class Oracle:
                     smis = [item[0] for item in temp_top100]
                     scores = [item[1][0] for item in temp_top100]
                     n_calls = self.max_oracle_calls
+
             else:
                 # Otherwise, log the input moleucles
                 smis = [Chem.MolToSmiles(m) for m in mols]
@@ -141,7 +142,25 @@ class Oracle:
             "auc_top10": top_auc(self.mol_buffer, 10, finish, self.freq_log, self.max_oracle_calls),
             "auc_top100": top_auc(self.mol_buffer, 100, finish, self.freq_log, self.max_oracle_calls),
         })
-
+        if finish:
+            data = {
+                "progress": f'{n_calls}/{self.max_oracle_calls}',
+                "metrics": {
+                    "avg_top1": avg_top1,
+                    "avg_top10": avg_top10,
+                    "avg_top100": avg_top100,
+                    "avg_sa": avg_sa,
+                    "diversity": diversity_top100
+                },
+                "auc": {
+                    "auc_top1": top_auc(self.mol_buffer, 1, finish, self.freq_log, self.max_oracle_calls),
+                    "auc_top10": top_auc(self.mol_buffer, 10, finish, self.freq_log, self.max_oracle_calls),
+                    "auc_top100": top_auc(self.mol_buffer, 100, finish, self.freq_log, self.max_oracle_calls)
+                }
+            }
+            output_file = os.path.join(self.args.output_dir, 'results_' +  self.query_structure + "_" + str(seed)+".json")
+            with open(output_file, 'w') as outfile:
+                json.dump(data, outfile, indent=4)
 
     def __len__(self):
         return len(self.mol_buffer) 
@@ -223,7 +242,6 @@ class BaseOptimizer:
         self.smi_file = args.smi_file
         self.max_oracle_calls = args.max_oracle_calls
         self.oracle = Oracle(args=self.args)
-        #self.all_smiles = MolData("data/ChEMBL_filtered.smi", voc)
         self.query_structure = args.query_structure
         self.sa_scorer = tdc.Oracle(name = 'SA')
         self.diversity_evaluator = tdc.Evaluator(name = 'Diversity')
@@ -246,16 +264,9 @@ class BaseOptimizer:
     def sort_buffer(self):
         self.oracle.sort_buffer()
     
-    def log_intermediate(self, mols=None, scores=None, finish=False):
-        self.oracle.log_intermediate(mols=mols, scores=scores, finish=finish)
+    def log_intermediate(self, mols=None, scores=None, finish=False, seed = None):
+        self.oracle.log_intermediate(mols=mols, scores=scores, finish=finish, seed=seed)
     
-    def log_result(self):
-
-        print(f"Logging final results...")
-
-        results = sorted(results[:100], key=lambda kv: kv[1][0], reverse=True)
-        self._analyze_results(results)
-
     def save_result(self, suffix=None):
 
         print(f"Saving molecules...")
@@ -273,7 +284,7 @@ class BaseOptimizer:
         with open(output_file_path, 'w') as f:
             yaml.dump(records, f, sort_keys=False)
     
-    def _analyze_results(self):
+    def _analyze_results(self, seed):
         structures = {
             "Celebrex" : "C1(S(N)(=O)=O)=CC=C(N2C(C3=CC=C(C)C=C3)=CC(C(F)(F)F)=N2)C=C1",
             "Osimertinib" : "CN1C=C(C2=CC=CC=C21)C3=NC(=NC=C3)NC4=C(C=C(C(=C4)NC(=O)C=C)N(C)CCN(C)C)OC",
@@ -294,26 +305,53 @@ class BaseOptimizer:
         sim_pass = 0
         logP_pass = 0
         qed_pass = 0
+        sim_min = 1
+        sim_max = 0
+        qed_min = 1
+        qed_max = 0
         for smi in smis:
             m = Chem.MolFromSmiles(smi)
             q = structures.get(self.query_structure)
             mq = Chem.MolFromSmiles(q)
             t = tanimoto(self.query_structure)
             score_tanimoto = np.array(t.__call__([smi]))
+            if sim_min > score_tanimoto:
+                sim_min = score_tanimoto
+
+            if sim_max < score_tanimoto:
+                sim_max = score_tanimoto
             s= logP()
             score_logp = np.array(s.__call__([smi]))
             qed_mq = Descriptors.qed(mq)
             qed_m = Descriptors.qed(m)
-
-            if score_tanimoto > 0.5:
+            if qed_min > qed_m:
+                qed_min = qed_m
+            if qed_max < qed_m:
+                qed_max = qed_m
+            if score_tanimoto > 0.6:
                 sim_pass += 1
             if score_logp == 1.0:
                 logP_pass += 1
             if qed_m > qed_mq:
                 qed_pass += 1
 
-            print(f"top100 sim_pass:{float(sim_pass / 100)} logP_ pass:{float(logP_pass / 100)} qed_pass:{float(qed_pass / 100)}")
+        
+        print(f"seed:{seed}")
+        output_file = os.path.join(self.args.output_dir, 'results_' +  self.query_structure + "_" + str(seed)+".json")
 
+        with open (output_file, "r") as infile:
+            existing_data = json.load(infile)
+        existing_data ["top100_pass_rates"]= {
+            "sim_pass_0.6": float(sim_pass / 100),
+            "sim_low_bound": float(sim_min),
+            "sim_max_bound": float(sim_max),
+            "logP_pass": float(logP_pass / 100),
+            "qed_pass": float(qed_pass / 100), 
+            "qed_low_bound": float(qed_min),
+            "qed_max_bound": float(qed_max)
+        }
+        with open(output_file, 'w') as outfile:
+            json.dump(existing_data, outfile, indent=4)
     def reset(self):
         del self.oracle
         self.oracle = Oracle(args=self.args)
@@ -325,10 +363,25 @@ class BaseOptimizer:
     @property
     def finish(self):
         return self.oracle.finish
+    
+    def optimize(self, oracle, config, query_structure, seed, project="test"):
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        random.seed(seed)
+        self.seed = seed 
+        self.oracle.task_label = self.model_name + "_" + query_structure + "_" + str(seed)
+        self._optimize(oracle, config, query_structure, seed)
+        self._analyze_results(seed)
+
+        self.save_result(self.model_name + "_" + query_structure + "_" + str(seed))
+
+        self.reset()
+
         
             
     def hparam_tune(self, oracles, hparam_space, hparam_default, count=5, num_runs=3, project="tune"):
-        seeds = [0, 1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+        #seeds = [0, 1, 2, 3, 5, 7, 11, 13, 17, 19,
+        seeds = [23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
         seeds = seeds[:num_runs]
         hparam_space["name"] = hparam_space["name"]
         
@@ -340,26 +393,12 @@ class BaseOptimizer:
                     np.random.seed(seed)
                     torch.manual_seed(seed)
                     random.seed(seed)
-                    self._optimize(oracle, self.config, self.query_structure)
+                    self._optimize(oracle, self.config, self.query_structure, seed)
                     auc_top10s.append(top_auc(self.oracle.mol_buffer, 10, True, self.oracle.freq_log, self.oracle.max_oracle_calls))
                     self.reset()
                 avg_auc += np.mean(auc_top10s)
             print({"avg_auc": avg_auc})
             
-
-    def optimize(self, oracle, config, query_structure, seed=0, project="test"):
-
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        random.seed(seed)
-        self.seed = seed 
-        self.oracle.task_label = self.model_name + "_" + query_structure + "_" + str(seed)
-        self._optimize(oracle, config, query_structure)
-        #if self.args.log_results: 
-        self._analyze_results()
-        self.save_result(self.model_name + "_" + query_structure + "_" + str(seed))
-
-        self.reset()
 
 
     def production(self, oracle, config, num_runs=5, project="production"):
@@ -369,5 +408,5 @@ class BaseOptimizer:
             raise ValueError(f"Current implementation only allows at most {len(seeds)} runs.")
         seeds = seeds[:num_runs]
         for seed in seeds:
-            self.optimize(oracle, config, seed, project)
+            self.optimize(oracle, config, self.query_structure, seed, project)
             self.reset()
