@@ -84,9 +84,8 @@ class REINVENT_Optimizer(BaseOptimizer):
             s= logP()
             score_logp = np.array(s.__call__(smiles))
             weights = [alpha, beta, gamma]
-            #score = weighted_geometric_mean(values, weights)
-            score = alpha*score_qed+beta*score_tanimoto+gamma*score_logp
-            score = score / sum(weights)
+            values = [score_logp, score_tanimoto, score_qed]
+            score = weighted_geometric_mean(values, weights)
 
 
             if self.finish:

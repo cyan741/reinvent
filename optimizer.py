@@ -13,7 +13,7 @@ from rdkit.Chem import Descriptors
 from help.chem import *
 from scoring_functions import tanimoto, logP
 import json
-
+from utils import weighted_geometric_mean
 class Objdict(dict):
     def __getattr__(self, name):
         if name in self:
@@ -167,6 +167,7 @@ class Oracle:
             smi = Chem.MolToSmiles(mol)
             if smi in self.mol_buffer:
                 pass
+            
             else:
                 score = 0
                 alpha = 10.0 
@@ -178,9 +179,9 @@ class Oracle:
                 score += beta * score_tanimoto
                 s= logP()
                 score_logp = np.array(s.__call__([smi]))[0]
+                values = [score_logp, score_tanimoto, score_qed]
                 weights = [alpha, beta, gamma]
-                score = alpha*score_qed+beta*score_tanimoto+gamma*score_logp
-                score = score / sum(weights)
+                score = weighted_geometric_mean(values, weights)
 
 
                 self.mol_buffer[smi] = [score, len(self.mol_buffer)+1]
