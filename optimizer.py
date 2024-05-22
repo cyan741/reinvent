@@ -188,14 +188,13 @@ class Oracle:
                 pass
             
             else:
-                score = 0
+
                 alpha = 10.0 
                 score_qed = float(self.evaluator(smi))
                 t = tanimoto(self.query_structure)
                 score_tanimoto = np.array(t.__call__([smi]))[0]
                 beta = 10.0
                 gamma = 1.0
-                score += beta * score_tanimoto
                 s= logP()
                 score_logp = np.array(s.__call__([smi]))[0]
                 values = [score_logp, score_tanimoto, score_qed]
