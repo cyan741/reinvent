@@ -16,7 +16,7 @@ def pretrain(output_file, restore_from=None):
     voc = Vocabulary(init_from_file="data/Voc")
 
     # Create a Dataset from a SMILES file
-    moldata = MolData("data/ChEMBL_filtered.smi", voc)
+    moldata = MolData("data/guacamol_v1_train.smiles", voc)
     data = DataLoader(moldata, batch_size=128, shuffle=True, drop_last=True,
                       collate_fn=MolData.collate_fn)
 
@@ -64,11 +64,11 @@ def pretrain(output_file, restore_from=None):
                         tqdm.write(smile)
                 tqdm.write("\n{:>4.1f}% valid SMILES".format(100 * valid / len(seqs)))
                 tqdm.write("*" * 50 + "\n")
-                torch.save(Prior.rnn.state_dict(), "data/Prior.ckpt")
+                torch.save(Prior.rnn.state_dict(), "data/GuaPrior.ckpt")
 
         # Save the Prior
-        torch.save(Prior.rnn.state_dict(), "data/Prior.ckpt")
+        torch.save(Prior.rnn.state_dict(), "data/GuaPrior.ckpt")
 
 if __name__ == "__main__":
-    output_file = "results/pretrain_results_from_ChemblFilter10000.smi"
+    output_file = "guacamol/pretrain_results_from_guacamol_train.smi"
     pretrain(output_file)

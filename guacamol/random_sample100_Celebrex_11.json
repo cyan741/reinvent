@@ -1,0 +1,16 @@
+{
+    "metrics": {
+        "avg_top1": 0.7597458987260424,
+        "avg_top10": 0.6931963366150603,
+        "avg_top100": 0.2096181634115194
+    },
+    "random_sample100_pass_rates": {
+        "sim_pass_0.6": 0.01,
+        "sim_low_bound": 0.041811846689895474,
+        "sim_max_bound": 0.6086956521739131,
+        "logP_pass": 0.38,
+        "qed_pass": 0.26,
+        "qed_low_bound": 0.03285854483923376,
+        "qed_max_bound": 0.9368434738722339
+    }
+}
