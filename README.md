@@ -1,7 +1,4 @@
-
-# a RL way for molecule optimization
-## Molecular De Novo design using Recurrent Neural Networks and Reinforcement Learning
-
+# Molecular De Novo design using Recurrent Neural Networks and Reinforcement Learning
 
 ## Requirements
 
