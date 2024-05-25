@@ -1,17 +1,18 @@
 # Molecular De Novo design using Recurrent Neural Networks and Reinforcement Learning
 
 ## Requirements
-
-This package requires:
-* Python 3.6
-* PyTorch 0.1.12 
-* [RDkit](http://www.rdkit.org/docs/Install.html)
-* Scikit-Learn (for QSAR scoring function)
-* tqdm (for training Prior)
-* pexpect
-* PyTDC 
-* PyYAML
-
+To build the environment:
+```
+conda create -n molopt python=3.7
+conda activate molopt
+pip install scikit_learn
+pip install tqdm
+pip install pexpect
+pip install torch 
+pip install PyTDC 
+pip install PyYAML
+conda install -c rdkit rdkit 
+```
 ## Usage
 
 To train a Prior using:
@@ -22,11 +23,12 @@ The checkpoint file will be included in ./data/Prior.ckpt
 To optimize molecules, use the main.py script. For example:
 
 ```
-## specify multiple random seeds 
+# specify multiple random seeds 
 python run.py reinvent --seed 0 1 2
+# run 5 runs with different random seeds 
+python run.py reinvent --task production --n_runs 5 
 ```
 
-Training can be visualized using the Vizard bokeh app. The vizard_logger.py is used to log information (by default to data/logs) such as structures generated, average score, and network weights.
 
 
 
