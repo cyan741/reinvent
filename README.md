@@ -21,8 +21,8 @@ The checkpoint file will be included in ./data/Prior.ckpt
 
 To optimize molecules, use the main.py script. For example:
 
-* `## specify multiple random seeds 
-python run.py reinvent --seed 0 1 2 `
+`## specify multiple random seeds `
+`python run.py reinvent --seed 0 1 2 `
 
 Training can be visualized using the Vizard bokeh app. The vizard_logger.py is used to log information (by default to data/logs) such as structures generated, average score, and network weights.
 
