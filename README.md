@@ -1,6 +1,6 @@
 # Molecular De Novo design using Recurrent Neural Networks and Reinforcement Learning
 
-## Requirements
+## Installation
 To build the environment:
 ```
 conda create -n molopt python=3.7
