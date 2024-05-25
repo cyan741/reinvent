@@ -18,9 +18,10 @@ conda install -c rdkit rdkit
 To train a Prior using:
 
 `./train_prior.py` 
+
 The checkpoint file will be included in ./data/Prior.ckpt
 
-To optimize molecules, use the main.py script. For example:
+To optimize molecules, use the run.py script. For example:
 
 ```
 # specify multiple random seeds 
