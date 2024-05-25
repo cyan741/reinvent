@@ -8,4 +8,4 @@ python run.py reinvent --seed 5 --query_structure Amlodipine &
 python run.py reinvent --seed 6 --query_structure Sitagliptin &
 python run.py reinvent --seed 7 --query_structure Zaleplon &
 wait
-echo "所有命令执行完毕"
+echo "all queries are done"
